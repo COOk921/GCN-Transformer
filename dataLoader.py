@@ -47,26 +47,32 @@ class CascadeData(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         # Following the previous works, we also predict the end of cascade.
-        cascade = self.cascade_data[idx]['cascade'] + [self.EOS]
+        label = self.cascade_data[idx]['cascade'][-1]       #
+        cascade = self.cascade_data[idx]['cascade'][:-1] + [self.EOS]    #
+        
         cas_raw = cascade[:self.max_len + 1] if len(cascade) > self.max_len + 1 else cascade
 
         cas_raw = torch.Tensor(cas_raw).long().squeeze()
         cascade = pad_1d_tensor(cas_raw, self.max_len + 1)
 
         data = dict(
-            cascade=cascade
+            cascade=cascade,
+            label=label                                     #
         )
         return data
 
 
 def dataProcess(args, data):
     cas_pad = data['cascade']
-    cascade = trans_to_cuda(cas_pad[:, :-1])
+    cascade = trans_to_cuda(cas_pad[:, :-1])               
     cas_mask = trans_to_cuda((cascade == 0))
-    label = trans_to_cuda(cas_pad[:, 1:]).contiguous().view(-1)
-    label_mask = trans_to_cuda(get_previous_user_mask(cascade, args.user_num))
+    label = trans_to_cuda(data['label']).contiguous().view(-1)    #
+    
+    label_mask = trans_to_cuda(get_previous_user_mask(cascade, args.user_num))  
+    
+    #由于只预测最后一个,因此取label_mask最后一个User的mask
+    return cascade, cas_mask, label, label_mask[:, -1, :]    #
 
-    return cascade, cas_mask, label, label_mask
 
 
 def RawGraph(args):

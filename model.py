@@ -3,6 +3,7 @@ from math import sqrt
 import torch.nn.functional as F
 from dataLoader import dataProcess
 from module import GraphEncoder, CascadeEncoder
+from utils.grouping import div_user_group
 import pdb
 
 class SILN(nn.Module):
@@ -15,7 +16,7 @@ class SILN(nn.Module):
         self.GNN = GraphEncoder(args)
         self.SAN = CascadeEncoder(args)
 
-        self.reduce_channels = nn.Linear(args.max_len, 1)       #Predict the last user .
+        self.reduce_channels = nn.Linear(args.group_num, 1)       #Predict the last user .
         self.Predict = nn.Linear(self.dim, self.user_num)
         self.reset_parameters()
 
@@ -26,14 +27,16 @@ class SILN(nn.Module):
 
     def forward(self, args, data, graph):
         cascade, cas_mask, label, label_mask = dataProcess(args, data)
-        
+
         # # 社交网络的图卷积
         initial_user = self.Embed.weight  # 可更新的初始嵌入（因为数据集里没有node feature）
         user_Embeddings = self.GNN(initial_user, graph)
 
-        # # 抽取参与者的embedding并使用Trm建模cascade
         casEmbed = F.embedding(cascade, user_Embeddings)
-        h = self.SAN(casEmbed, cas_mask)
+        # divide to groups
+        groupEmbed, group_mask = div_user_group(casEmbed, cas_mask, args)
+
+        h = self.SAN(groupEmbed, group_mask)
 
         # # channel reduction
         h = self.reduce_channels(h.transpose(1, 2)).squeeze(-1)

@@ -3,7 +3,7 @@ from math import sqrt
 import torch.nn.functional as F
 from dataLoader import dataProcess
 from module import GraphEncoder, CascadeEncoder
-from utils.grouping import div_user_group
+from utils.grouping import div_user_group,grouping
 import pdb
 
 class SILN(nn.Module):
@@ -34,7 +34,7 @@ class SILN(nn.Module):
 
         casEmbed = F.embedding(cascade, user_Embeddings)
         # divide to groups
-        groupEmbed, group_mask = div_user_group(casEmbed, cas_mask, args)
+        groupEmbed, group_mask = grouping(casEmbed, cas_mask, args)
 
         h = self.SAN(groupEmbed, group_mask)
 

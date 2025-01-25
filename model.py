@@ -35,8 +35,8 @@ class SILN(nn.Module):
         casEmbed = F.embedding(cascade, user_Embeddings)
         # divide to groups
         groupEmbed, group_mask = grouping(casEmbed, cas_mask, args)
-
-        h = self.SAN(groupEmbed, group_mask)
+    
+        h = self.SAN(groupEmbed ,casEmbed, casEmbed, group_mask) #Q:groupEmbed, K:casEmbed, V:casEmbed
 
         # # channel reduction
         h = self.reduce_channels(h.transpose(1, 2)).squeeze(-1)

@@ -81,7 +81,7 @@ def cluster_with_Birch(X, k ):
     # pca = PCA(n_components = X.size(-1)//4  ) # 64 -> 8
     # batch_pca = pca.fit_transform(X_cpu)
 
-    birch = Birch(n_clusters=k,threshold = 0.3)
+    birch = Birch(n_clusters=k)
     birch.fit(X_norm)
 
     labels = torch.from_numpy(birch.labels_)

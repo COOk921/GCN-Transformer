@@ -35,12 +35,20 @@ class CascadeEncoder(nn.Module):
         self.Encoder = TrmEncoder(input_size=args.dim, n_heads=self.n_heads)
         self.drop = nn.Dropout(args.dropout)
 
-    def forward(self, seq_h, pad_mask):
-        seq_h = seq_h + self.PE(seq_h)
+    # def forward(self, seq_h, pad_mask):
+    #     seq_h = seq_h + self.PE(seq_h)
 
-        seq_h = self.Encoder(self.drop(seq_h), seq_h, seq_h, pad_mask)  # pad_mask是把padding的部分注意力置为-inf
-        return self.drop(seq_h)
+    #     seq_h = self.Encoder(self.drop(seq_h), seq_h, seq_h, pad_mask)  # pad_mask是把padding的部分注意力置为-inf
+    #     return self.drop(seq_h)
+    
+    #修改后
+    def forward(self, seq_q, seq_k, seq_v, pad_mask):
+        seq_q = seq_q + self.PE(seq_q)
+        seq_k = seq_k + self.PE(seq_k)
+        seq_v = seq_v + self.PE(seq_v)
 
+        seq_out = self.Encoder(self.drop(seq_q), seq_k, seq_v, pad_mask)
+        return self.drop(seq_out)
 
 class PositionEmbedding(nn.Module):
     def __init__(self, args):
@@ -58,7 +66,7 @@ class PositionEmbedding(nn.Module):
 
 class TrmEncoder(nn.Module):
     """
-    Implementation of Transformer: Multi-head Self-Attention
+    Implementation of Transformer: Cross-Attention
     """
 
     def __init__(self, input_size, d_k=128, d_v=128, n_heads=4, is_layer_norm=True, attn_dropout=0.1):
@@ -126,8 +134,8 @@ class TrmEncoder(nn.Module):
         V_ = V.matmul(self.W_v).view(bsz, v_len, self.n_heads, self.d_v)
 
         Q_ = Q_.permute(0, 2, 1, 3).contiguous().view(bsz * self.n_heads, q_len, self.d_k)
-        K_ = K_.permute(0, 2, 1, 3).contiguous().view(bsz * self.n_heads, q_len, self.d_k)
-        V_ = V_.permute(0, 2, 1, 3).contiguous().view(bsz * self.n_heads, q_len, self.d_v)
+        K_ = K_.permute(0, 2, 1, 3).contiguous().view(bsz * self.n_heads, k_len, self.d_k)
+        V_ = V_.permute(0, 2, 1, 3).contiguous().view(bsz * self.n_heads, v_len, self.d_v)
 
         mask = mask.unsqueeze(dim=1).expand(-1, self.n_heads, -1)  # For head axis broadcasting.
         mask = mask.reshape(-1, mask.size(-1))

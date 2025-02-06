@@ -1,7 +1,7 @@
 import os
 import time
 import logging
-
+import pdb
 import torch
 import torch.nn as nn
 
@@ -26,7 +26,7 @@ def train(args):
 
     num_total_steps = len(train_dataloader) * args.max_epochs
     optimizer, scheduler = build_optimizer(args, model, num_total_steps)
-    loss_function = nn.CrossEntropyLoss(ignore_index=0)
+    loss_function = nn.BCELoss()
 
     # 3. Training
     step = 0
@@ -40,7 +40,6 @@ def train(args):
 
             pred_user, label = model(args, batch, graph)
             loss = loss_function(pred_user, label)
-
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -87,7 +86,7 @@ def inference(args, model, dataloader, graph):
         for batch in dataloader:
             prediction, label = model(args, batch, graph)
             scores_batch, scores_len = Metrics(args).compute_metric(prediction.cpu(),
-                                                                    label.contiguous().view(-1).detach().cpu().numpy())
+                                                                    label.contiguous().detach().cpu().numpy())
             n_total_words += scores_len
             for k in k_list:
                 scores['hit@' + str(k)] += scores_batch['hit@' + str(k)] * scores_len

@@ -16,8 +16,11 @@ class SILN(nn.Module):
         self.GNN = GraphEncoder(args)
         self.SAN = CascadeEncoder(args)
 
-        self.reduce_channels = nn.Linear(args.group_num, 1)       #Predict the last user .
+        #self.reduce_channels = nn.MaxPool1d(kernel_size=args.group_num)  #Maxpooling
+        self.reduce_channels = nn.AvgPool1d(kernel_size=args.group_num)  
+
         self.Predict = nn.Linear(self.dim, self.user_num)
+        self.sigmoid = nn.Sigmoid()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -34,15 +37,15 @@ class SILN(nn.Module):
 
         casEmbed = F.embedding(cascade, user_Embeddings)
         # divide to groups
-        groupEmbed, group_mask = grouping(casEmbed, cas_mask, args)
-    
-        h = self.SAN(groupEmbed ,casEmbed, casEmbed, group_mask) #Q:groupEmbed, K:casEmbed, V:casEmbed
+        groupEmbed, group_mask, count = grouping(casEmbed, cas_mask, args)        
+        h = self.SAN(groupEmbed ,groupEmbed, groupEmbed, group_mask, count) #Q:groupEmbed, K:casEmbed, V:casEmbed
 
         # # channel reduction
-        h = self.reduce_channels(h.transpose(1, 2)).squeeze(-1)
+        #h = self.reduce_channels(h.transpose(1, 2)).squeeze(-1)   
+        h = self.reduce_channels(h.transpose(1, 2)).squeeze(-1)   
        
         # # 预测
-        pred_user = self.Predict(h) + label_mask
-        pred_user = pred_user.view(-1, pred_user.size(-1))
-        
+        pred_user = h@user_Embeddings.t() + label_mask  
+        pred_user = self.sigmoid(pred_user)
+
         return pred_user, label

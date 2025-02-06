@@ -16,13 +16,17 @@ class Metrics(object):
         scores = {'hit@' + str(k): [] for k in k_list}
         scores.update({'map@' + str(k): [] for k in k_list})
         for p_, y_ in zip(y_prob, y_true):
-            if y_ != self.PAD:
-                scores_len += 1.0
-                p_sort = p_.argsort()
-                for k in k_list:
-                    top_k = p_sort[-k:][::-1]
-                    scores['hit@' + str(k)].extend([1. if y_ in top_k else 0.])
-                    scores['map@' + str(k)].extend([apk([y_], top_k, k)])
+                actual_classes = np.where(y_ == 1)[0]
+                if len(actual_classes) > 0:
+                    scores_len += 1.0
+                    p_sort = p_.argsort()
+                    for k in k_list:
+                        top_k = p_sort[-k:][::-1]
+                        # 计算 hit@k
+                        hit = any([cls in top_k for cls in actual_classes])
+                        scores['hit@' + str(k)].append(1. if hit else 0.)
+                        # 计算 map@k
+                        scores['map@' + str(k)].append(apk(actual_classes, top_k, k))
 
         scores = {k: np.mean(v) for k, v in scores.items()}
         return scores, scores_len

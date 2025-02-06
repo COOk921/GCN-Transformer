@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
-
+import pdb
 
 class GraphEncoder(nn.Module):
     def __init__(self, args):
@@ -42,12 +42,12 @@ class CascadeEncoder(nn.Module):
     #     return self.drop(seq_h)
     
     #修改后
-    def forward(self, seq_q, seq_k, seq_v, pad_mask):
+    def forward(self, seq_q, seq_k, seq_v, pad_mask, count):
         seq_q = seq_q + self.PE(seq_q)
         seq_k = seq_k + self.PE(seq_k)
         seq_v = seq_v + self.PE(seq_v)
 
-        seq_out = self.Encoder(self.drop(seq_q), seq_k, seq_v, pad_mask)
+        seq_out = self.Encoder(self.drop(seq_q), seq_k, seq_v, pad_mask, count)
         return self.drop(seq_out)
 
 class PositionEmbedding(nn.Module):
@@ -104,7 +104,7 @@ class TrmEncoder(nn.Module):
         output = self.dropout(output)
         return output
 
-    def scaled_dot_product_attention(self, Q, K, V, attn_mask, attn_bias, epsilon=1e-6):
+    def scaled_dot_product_attention(self, Q, K, V ,attn_mask, attn_bias, count ,epsilon=1e-6):
         temperature = self.d_k ** 0.5
         Q_K = torch.einsum("bqd,bkd->bqk", Q, K) / (temperature + epsilon)
 
@@ -113,9 +113,12 @@ class TrmEncoder(nn.Module):
         mask_ = attn_mask + pad_mask
         Q_K = Q_K.masked_fill(mask_, -2 ** 32 + 1)
 
+        count = count.repeat_interleave(self.n_heads, dim=0).unsqueeze(-1)
+        Q_K = Q_K * count
+        
         if attn_bias is not None:
             attn_bias = attn_bias.masked_fill(mask_, -2 ** 32 + 1)
-            attn_weight = F.softmax(Q_K, dim=-1) + F.softmax(attn_bias, dim=-1)
+            attn_weight = F.softmax(Q_K, dim=-1) + F.softmax(attn_bias, dim=-1)  #N*N
 
         else:
             attn_weight = F.softmax(Q_K, dim=-1)
@@ -123,7 +126,7 @@ class TrmEncoder(nn.Module):
         attn_weight = self.dropout(attn_weight)
         return attn_weight @ V
 
-    def multi_head_attention(self, Q, K, V, mask, bias):
+    def multi_head_attention(self, Q, K, V, mask, count, bias):
 
         bsz, q_len, _ = Q.size()
         bsz, k_len, _ = K.size()
@@ -143,15 +146,15 @@ class TrmEncoder(nn.Module):
             bias = bias.unsqueeze(dim=1).expand(-1, self.n_heads, -1, -1)
             bias = bias.reshape(-1, mask.size(-1), mask.size(-1))
 
-        V_att = self.scaled_dot_product_attention(Q_, K_, V_, mask, bias)
+        V_att = self.scaled_dot_product_attention(Q_, K_, V_, mask, bias, count)
         V_att = V_att.view(bsz, self.n_heads, q_len, self.d_v)
         V_att = V_att.permute(0, 2, 1, 3).contiguous().view(bsz, q_len, self.n_heads * self.d_v)
 
         output = self.dropout(V_att.matmul(self.W_o))
         return output
 
-    def forward(self, Q, K, V, mask, bias=None):
-        V_att = self.multi_head_attention(Q, K, V, mask, bias)
+    def forward(self, Q, K, V, mask, count,bias=None):
+        V_att = self.multi_head_attention(Q, K, V, mask, count, bias)
 
         if self.is_layer_norm:
             X = self.layer_norm(Q + V_att)

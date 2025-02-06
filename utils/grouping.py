@@ -38,6 +38,7 @@ def grouping(casEmbed, cas_mask ,args):
     casEmbed = casEmbed * ( ~cas_mask.unsqueeze(-1) ) 
 
     all_labels = []
+    count = []                  #每个group中的有效长度
     for b in range(batch_size):
         batch_data = casEmbed[b]
         batch_mask = cas_mask[b] 
@@ -47,11 +48,18 @@ def grouping(casEmbed, cas_mask ,args):
         k = 2 if k < 2 else k          # 至少要分两组
     
         labels_b = cluster(batch_data, k)
-        
         all_labels.append(labels_b)
 
+        group_count = torch.bincount(labels_b)  # 统计每个group的长度
+        group_count = torch.cat([group_count, torch.zeros(args.group_num - len(group_count), dtype=torch.long, device=casEmbed.device)])
+        count.append(group_count)
+    
+    count = torch.stack(count, dim=0)
+    
     grouped_labels = torch.stack(all_labels, dim=0)
     grouped_labels = trans_to_cuda(grouped_labels)
+
+    count = torch.tensor(count, device=casEmbed.device) #[batch, group_num]
 
     num_groups = torch.max(grouped_labels).item() + 1
     
@@ -63,13 +71,13 @@ def grouping(casEmbed, cas_mask ,args):
     )
     
     index = grouped_labels.unsqueeze(-1).expand(-1, -1,embed_size).to(torch.long)
-    # pdb.set_trace()
+   
     groupEmbed.scatter_add_(1, index, casEmbed)
 
     groupEmbed = torch.nn.functional.pad(groupEmbed, (0, 0, 0, args.group_num - num_groups))
     group_mask = torch.all(groupEmbed == 0, dim=2)
 
-    return groupEmbed, group_mask
+    return groupEmbed, group_mask, count
 
 def cluster(X, k ):
 
@@ -77,7 +85,6 @@ def cluster(X, k ):
     # X_cpu = X.cpu().detach().numpy()
     # scaler = MinMaxScaler(feature_range=(-1, 1))
     # X_norm = scaler.fit_transform(X_cpu )
-    # X_norm = torch.from_numpy(X_norm).to(X.device)
 
     """ GPU 归一化 """
     min_vals = torch.min(X, dim=1, keepdim=True)[0]

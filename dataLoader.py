@@ -1,6 +1,6 @@
 import json
 import numpy as np
-
+import pdb
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
@@ -38,6 +38,7 @@ class CascadeData(Dataset):
         self.max_len = args.max_len
         self.EOS = args.user_num - 1
         self.seed = args.seed
+        self.predict_user_num = args.predict_user_num
 
         with open(dataPath, 'r') as cas_file:
             self.cascade_data = json.load(cas_file)
@@ -47,17 +48,23 @@ class CascadeData(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         # Following the previous works, we also predict the end of cascade.
-        label = self.cascade_data[idx]['cascade'][-1]       #
-        cascade = self.cascade_data[idx]['cascade'][:-1] + [self.EOS]    #
+        label = self.cascade_data[idx]['cascade'][-self.predict_user_num:]
+        cascade = self.cascade_data[idx]['cascade'][:-self.predict_user_num] + [self.EOS]
+        
+        # cascade中用户数量小于predict_user_num，填充EOS
+        if len(cascade) == 1:
+            cascade = [self.EOS, self.EOS]
         
         cas_raw = cascade[:self.max_len + 1] if len(cascade) > self.max_len + 1 else cascade
 
         cas_raw = torch.Tensor(cas_raw).long().squeeze()
         cascade = pad_1d_tensor(cas_raw, self.max_len + 1)
 
+        one_hot_label = torch.zeros( self.EOS + 1, dtype=torch.float32)
+        one_hot_label.scatter_(0, torch.tensor(label), 1)
         data = dict(
             cascade=cascade,
-            label=label                                     #
+            label=one_hot_label
         )
         return data
 
@@ -66,8 +73,7 @@ def dataProcess(args, data):
     cas_pad = data['cascade']
     cascade = trans_to_cuda(cas_pad[:, :-1])               
     cas_mask = trans_to_cuda((cascade == 0))
-    label = trans_to_cuda(data['label']).contiguous().view(-1)    #
-    
+    label = trans_to_cuda(data['label'].squeeze_(1)).contiguous()   # 
     label_mask = trans_to_cuda(get_previous_user_mask(cascade, args.user_num))  
     
     #由于只预测最后一个,因此取label_mask最后一个User的mask

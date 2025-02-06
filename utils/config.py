@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('--max_len', type=int, default=200, help="The maximum length of cascade")
     parser.add_argument('--group_num', type=int, default=50, help="The number of groups(group_num = max_len/group_size)")
     parser.add_argument('--group_size', type=int, default=4, help="The size of groups(group_size = max_len/group_num)")
+    parser.add_argument('--predict_user_num', type=int, default=1, help="The number of users to predict")
 
     # ========================= Learning Configs ==========================
     parser.add_argument('--max_epochs', type=int, default=50, help="How many epochs")

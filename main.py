@@ -62,6 +62,9 @@ def train(args):
         print(' # ----------Test Result---------')
         for metric in t_scores.keys():
             print(' ' + metric + ' ' + str(t_scores[metric]))
+            if 'recall@' in metric:
+                print('')
+               
 
         if sum(t_scores.values()) > best_score:
             best_score = sum(t_scores.values())
@@ -72,6 +75,8 @@ def train(args):
     print('\n #-------Reported Result-------')
     for metric in best_scores.keys():
         print(' ' + metric + ' ' + str(best_scores[metric]))
+        if 'recall@' in metric:
+                print('')
 
 
 def inference(args, model, dataloader, graph):
@@ -81,6 +86,8 @@ def inference(args, model, dataloader, graph):
     for k in k_list:
         scores['hit@' + str(k)] = 0
         scores['map@' + str(k)] = 0
+        scores['ndcg@' + str(k)] = 0
+        scores['recall@' + str(k)] = 0
     n_total_words = 0
     with torch.no_grad():
         for batch in dataloader:
@@ -91,9 +98,14 @@ def inference(args, model, dataloader, graph):
             for k in k_list:
                 scores['hit@' + str(k)] += scores_batch['hit@' + str(k)] * scores_len
                 scores['map@' + str(k)] += scores_batch['map@' + str(k)] * scores_len
+                scores['ndcg@' + str(k)] += scores_batch['ndcg@' + str(k)] * scores_len
+                scores['recall@' + str(k)] += scores_batch['recall@' + str(k)] * scores_len
+
     for k in k_list:
         scores['hit@' + str(k)] = scores['hit@' + str(k)] / n_total_words
         scores['map@' + str(k)] = scores['map@' + str(k)] / n_total_words
+        scores['ndcg@' + str(k)] = scores['ndcg@' + str(k)] / n_total_words
+        scores['recall@' + str(k)] = scores['recall@' + str(k)] / n_total_words
 
     return scores
 

@@ -92,7 +92,7 @@ def cluster(X, k ):
     denominator = max_vals - min_vals
     zero_denominator_mask = denominator == 0
    
-    denominator = torch.where(zero_denominator_mask, torch.tensor(1e-8, dtype=torch.float32,device='cuda'), denominator)
+    denominator = torch.where(zero_denominator_mask, torch.tensor(1e-8, dtype=torch.long,device = X.device), denominator)
     X_norm = (X - min_vals) / denominator
     X_norm = torch.where(zero_denominator_mask, torch.zeros_like(X), X_norm)
     
@@ -173,8 +173,13 @@ def kmeans_plus_plus_init(X, k):
         # 计算每个样本到已选质心的最小距离的平方
         distances = torch.cdist(X, centroids[:i])
         min_distances_squared = torch.min(distances, dim=1)[0] ** 2
-        # 根据距离的平方作为概率分布选择下一个质心
-        probabilities = min_distances_squared / torch.sum(min_distances_squared)
+
+        epsilon = 1e-8
+        probabilities = min_distances_squared / (torch.sum(min_distances_squared) + epsilon)
+
+        if probabilities.sum() == 0:
+            probabilities = torch.ones_like(probabilities) / len(probabilities)
+
         next_centroid_index = torch.multinomial(probabilities, 1).item()
         centroids[i] = X[next_centroid_index]
 

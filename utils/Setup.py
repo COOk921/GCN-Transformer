@@ -47,6 +47,10 @@ def setup_info(args):
         setup_android(args)
     elif args.dataset == 'christian':
         setup_christian(args)
+    elif args.dataset == 'weibo':
+        setup_weibo(args)
+    elif args.dataset == 'quora':
+        setup_quora(args)
     else:
         print(' Data_Path ERROR ! ')
 
@@ -77,5 +81,15 @@ def setup_android(args):
 
 def setup_christian(args):
     args.user_num = 1651 + 2
+    args.dim = 64
+    args.n_warmup_steps = 200
+
+def setup_weibo(args):
+    args.user_num = 5556 + 2
+    args.dim = 64
+    args.n_warmup_steps = 500
+
+def setup_quora(args):
+    args.user_num = 4579 + 2
     args.dim = 64
     args.n_warmup_steps = 200
